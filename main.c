@@ -1,36 +1,54 @@
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
+// ---------------------------------------------------------
+// Affiche la matrice
+// ---------------------------------------------------------
 void affichage_matrice(int val, int t[val][val]) {
-    int j,i;
-    for (i=0;i<val;i++) {
-        printf("\n");
-        for (j=0;j<val;j++) {
-            printf("%i ",t[i][j]);
+    int i, j;
+    for (i = 0; i < val; i++) {
+        for (j = 0; j < val; j++) {
+            printf("%d ", t[i][j]);
         }
+        printf("\n"); //(0 = morte, 1 = vivante)
     }
-    printf("\n\n");
+    printf("\n");
 }
 
+// ---------------------------------------------------------
+// Remplit la matrice manuellement (saisie utilisateur)
+// ---------------------------------------------------------
 void remplissage_matrice(int val, int t[val][val]) {
-    int j,i;
-    printf("Nous utiliserons des 0 pour les cases vides et 1 pour les cases pleines\n");
-    for (i=0;i<val;i++) {
-        for (j=0;j<val;j++) {
+    int i, j;
+    printf("Nous utiliserons des 0 pour les cases mortes et 1 pour les cases vivantes\n");
+    for (i = 0; i < val; i++) {
+        for (j = 0; j < val; j++) {
             do {
-                printf("Saissez votre valeur pour la case [%i][%i]\n",i,j);
-                scanf("%i",&t[i][j]);
-                if (t[i][j]<0||t[i][j]>1) {
-                    printf("Veuillez saisir que des valeurs de 0 ou 1\n");
-                }
-            }while (t[i][j]<0||t[i][j]>1);
+                printf("Saisissez la valeur pour la case [%d][%d] : ", i, j);
+                scanf("%d", &t[i][j]);
+                if (t[i][j] < 0 || t[i][j] > 1)
+                    printf("Veuillez saisir uniquement 0 ou 1.\n");
+            } while (t[i][j] < 0 || t[i][j] > 1);
         }
     }
 }
 
+// ---------------------------------------------------------
+// Remplit la matrice aléatoirement
+// ---------------------------------------------------------
+void remplissage_aleatoire(int val, int t[val][val]) {
+    srand(time(NULL));
+    for (int i = 0; i < val; i++) {
+        for (int j = 0; j < val; j++) {
+            t[i][j] = rand() % 2; // 0 ou 1 aléatoirement
+        }
+    }
+}
 
+// ---------------------------------------------------------
 // Menu principal
+// ---------------------------------------------------------
 int menu(int val, int t[val][val]) {
     int rep;
     printf("\n=== MENU ===\n");
@@ -71,8 +89,9 @@ int menu(int val, int t[val][val]) {
     }
 }
 
-
+// ---------------------------------------------------------
 // Programme principal
+// ---------------------------------------------------------
 int main(void) {
     int val;
     printf("Choisissez la taille de la matrice (ex: 5) : ");
