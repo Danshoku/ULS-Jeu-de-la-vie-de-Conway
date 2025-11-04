@@ -29,41 +29,65 @@ void remplissage_matrice(int val, int t[val][val]) {
     }
 }
 
+
+// Menu principal
 int menu(int val, int t[val][val]) {
-    int rep = 1;
-    int var;
-    do {
-        printf("Voici le menu :\n\n");
-        printf("1 - Afficher la matrice\n");
-        printf("2- Remplir la matrice\n");
-        printf("3- Quitter le menu\n");
-        scanf("%i",&rep);
-        if (rep<1||rep>3) {
-            printf("Erreur de saisie, veuillez saisir une valeur entre 1 et 3\n");
-        }
-    }while (rep<1||rep>3);
+    int rep;
+    printf("\n=== MENU ===\n");
+    printf("1 - Afficher la matrice\n");
+    printf("2 - Remplir la matrice manuellement\n");
+    printf("3 - Remplir la matrice aléatoirement\n");
+    printf("4 - Lancer le jeu de la vie\n");
+    printf("5 - Quitter\n");
+    printf("Votre choix : ");
+    scanf("%d", &rep);
+
     switch (rep) {
-        case 1: affichage_matrice(val,t);
-            var = 1;
-            break;
-        case 2: remplissage_matrice(val,t);
-            var = 1;
-            break;
+        case 1:
+            affichage_matrice(val, t);
+            return 1;
+        case 2:
+            remplissage_matrice(val, t);
+            return 1;
         case 3:
-            var = 0;
-            return var;
+
+            return 1;
+        case 4: {
+            int nb_gen;
+            printf("Combien de générations voulez-vous simuler ? ");
+            scanf("%d", &nb_gen);
+            for (int g = 0; g < nb_gen; g++) {
+                printf("\nGénération %d :\n", g + 1);
+                affichage_matrice(val, t);
+
+            }
+            return 1;
+        }
+        case 5:
+            return 0;
+        default:
+            printf("Choix invalide.\n");
+            return 1;
     }
 }
 
+
+// Programme principal
 int main(void) {
-    int val,res;
-    printf("Choisissez le nombre de votre matrice \n");
-    scanf("%i",&val);
+    int val;
+    printf("Choisissez la taille de la matrice (ex: 5) : ");
+    scanf("%d", &val);
+
     int t[val][val];
-    do {
-        res = menu(val,t);
-    }while(res == 1);
+    for (int i = 0; i < val; i++)
+        for (int j = 0; j < val; j++)
+            t[i][j] = 0; // initialisation à 0
+
+    int continuer = 1;
+    while (continuer == 1) {
+        continuer = menu(val, t);
+    }
+
+    printf("Fin du programme.\n");
+    return 0;
 }
-
-
-
