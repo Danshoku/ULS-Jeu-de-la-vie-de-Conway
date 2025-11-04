@@ -15,10 +15,16 @@ void affichage_matrice(int val, int t[val][val]) {
 
 void remplissage_matrice(int val, int t[val][val]) {
     int j,i;
+    printf("Nous utiliserons des 0 pour les cases vides et 1 pour les cases pleines\n");
     for (i=0;i<val;i++) {
         for (j=0;j<val;j++) {
-            printf("Saissez votre valeur pour la case [%i][%i]",i,j);
-            scanf("%i",&t[i][j]);
+            do {
+                printf("Saissez votre valeur pour la case [%i][%i]\n",i,j);
+                scanf("%i",&t[i][j]);
+                if (t[i][j]<0||t[i][j]>1) {
+                    printf("Veuillez saisir que des valeurs de 0 ou 1\n");
+                }
+            }while (t[i][j]<0||t[i][j]>1);
         }
     }
 }
@@ -45,10 +51,8 @@ int menu(int val, int t[val][val]) {
             break;
         case 3:
             var = 0;
-            break;
+            return var;
     }
-    return var;
-
 }
 
 int main(void) {
@@ -58,7 +62,7 @@ int main(void) {
     int t[val][val];
     do {
         res = menu(val,t);
-    }while(res = 1);
+    }while(res == 1);
 }
 
 
