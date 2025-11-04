@@ -50,7 +50,7 @@ int menu(int val, int t[val][val]) {
             remplissage_matrice(val, t);
             return 1;
         case 3:
-
+            remplissage_aleatoire(val, t);
             return 1;
         case 4: {
             int nb_gen;
@@ -59,7 +59,7 @@ int menu(int val, int t[val][val]) {
             for (int g = 0; g < nb_gen; g++) {
                 printf("\nGénération %d :\n", g + 1);
                 affichage_matrice(val, t);
-
+                generation_suivante(val, t);
             }
             return 1;
         }
