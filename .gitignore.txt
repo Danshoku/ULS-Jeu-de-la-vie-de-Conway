@@ -1,5 +1,0 @@
-# Dossiers de build de CLion
-/cmake-build-debug/
-
-# Dossier de configuration de l'IDE (CLion)
-/.idea/
