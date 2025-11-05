@@ -3,7 +3,7 @@ project(Jeu_de_la_vie_de_Conway C)
 
 set(CMAKE_C_STANDARD 11)
 
-set(RAYLIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vendor/raylib)
+set(RAYLIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/raylib)
 
 include_directories(${RAYLIB_DIR}/include)
 link_directories(${RAYLIB_DIR}/lib)
