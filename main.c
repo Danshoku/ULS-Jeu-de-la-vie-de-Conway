@@ -11,7 +11,7 @@ void affichage_matrice(int val, int t[val][val]) {
         for (j = 0; j < val; j++) {
             printf("%d ", t[i][j]);
         }
-        printf("\n"); //(0 = morte, 1 = vivante)
+        printf("\n"); //0 = morte, 1 = vivante)
     }
     printf("\n");
 }
@@ -42,6 +42,54 @@ void remplissage_aleatoire(int val, int t[val][val]) {
     for (int i = 0; i < val; i++) {
         for (int j = 0; j < val; j++) {
             t[i][j] = rand() % 2; // 0 ou 1 aléatoirement
+        }
+    }
+}
+
+// ---------------------------------------------------------
+// Compte le nombre de voisins vivants d'une cellule
+// ---------------------------------------------------------
+int compte_voisins(int val, int t[val][val], int x, int y) {
+    int voisins = 0;
+
+    // On parcourt les 8 cases autour de la cellule
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            if (!(i == 0 && j == 0)) { // on ignore la cellule elle-même
+                int nx = (x + i + val) % val;
+                int ny = (y + j + val) % val;
+                voisins += t[nx][ny];
+            }
+        }
+    }
+
+    return voisins;
+}
+
+// ---------------------------------------------------------
+// Calcule la génération suivante selon les règles du jeu
+// ---------------------------------------------------------
+void generation_suivante(int val, int t[val][val]) {
+    int temp[val][val];
+
+    for (int i = 0; i < val; i++) {
+        for (int j = 0; j < val; j++) {
+            int voisins = compte_voisins(val, t, i, j);
+
+            // Règles du jeu de la vie
+            if (t[i][j] == 1 && (voisins < 2 || voisins > 3))
+                temp[i][j] = 0; // meurt
+            else if (t[i][j] == 0 && voisins == 3)
+                temp[i][j] = 1; // naissance
+            else
+                temp[i][j] = t[i][j]; // reste identique
+        }
+    }
+
+    // Copie du tableau temp dans le tableau principal
+    for (int i = 0; i < val; i++) {
+        for (int j = 0; j < val; j++) {
+            t[i][j] = temp[i][j];
         }
     }
 }
