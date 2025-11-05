@@ -17,7 +17,7 @@ void affichage_matrice(int val, int t[val][val]) {
 }
 
 // ---------------------------------------------------------
-// Remplit la matrice manuellement (saisie utilisateur)
+// Remplit la matrice manuellement
 // ---------------------------------------------------------
 void remplissage_matrice(int val, int t[val][val]) {
     int i, j;
@@ -67,7 +67,7 @@ int compte_voisins(int val, int t[val][val], int x, int y) {
 }
 
 // ---------------------------------------------------------
-// Calcule la génération suivante selon les règles du jeu
+// Calcule la génération suivante
 // ---------------------------------------------------------
 void generation_suivante(int val, int t[val][val]) {
     int temp[val][val];
