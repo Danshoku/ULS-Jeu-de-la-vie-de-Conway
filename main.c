@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <raylib.h>
 
 // ---------------------------------------------------------
 // Affiche la matrice
@@ -110,7 +109,6 @@ void calcul_gen(int val, int t[val][val]) {
     }
 }
 
-
 // ---------------------------------------------------------
 // Menu principal
 // ---------------------------------------------------------
@@ -121,8 +119,7 @@ int menu(int val, int t[val][val]) {
     printf("2 - Remplir la matrice manuellement\n");
     printf("3 - Remplir la matrice aleatoirement\n");
     printf("4 - Lancer le jeu de la vie\n");
-    printf("5 - Afficher Raylib\n");
-    printf("6 - Quitter\n");
+    printf("5 - Quitter\n");
     printf("Votre choix : ");
     scanf("%d", &rep);
 
@@ -148,17 +145,13 @@ int menu(int val, int t[val][val]) {
             }
             return 1;
         }
-        case 5: {
-            return 1;
-        }
-        case 6:
+        case 5:
             return 0;
         default:
             printf("Choix invalide.\n");
             return 1;
     }
 }
-
 
 // ---------------------------------------------------------
 // Programme principal
@@ -171,9 +164,13 @@ int main(void) {
     int t[val][val];
     for (int i = 0; i < val; i++)
         for (int j = 0; j < val; j++)
-            t[i][j] = 0;
+            t[i][j] = 0; // initialisation à 0
 
-    menu(val, t);
+    int continuer = 1;
+    while (continuer == 1) {
+        continuer = menu(val, t);
+    }
+
     printf("Fin du programme.\n");
     return 0;
 }
