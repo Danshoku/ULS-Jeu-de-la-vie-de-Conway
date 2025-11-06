@@ -37,6 +37,7 @@ void remplissage_matrice(int val, int t[val][val]) {
 // ---------------------------------------------------------
 // Remplit la matrice aléatoirement
 // ---------------------------------------------------------
+
 void remplissage_aleatoire(int val, int t[val][val]) {
     srand(time(NULL));
     for (int i = 0; i < val; i++) {
@@ -47,48 +48,62 @@ void remplissage_aleatoire(int val, int t[val][val]) {
 }
 
 // ---------------------------------------------------------
-// Compte le nombre de voisins vivants d'une cellule
+// Compte chaque case autour
 // ---------------------------------------------------------
-int compte_voisins(int val, int t[val][val], int x, int y) {
-    int voisins = 0;
 
-    // On parcourt les 8 cases autour de la cellule
-    for (int i = -1; i <= 1; i++) {
-        for (int j = -1; j <= 1; j++) {
-            if (!(i == 0 && j == 0)) { // on ignore la cellule elle-même
-                int nx = (x + i + val) % val;
-                int ny = (y + j + val) % val;
-                voisins += t[nx][ny];
+int compte_voisins(int val, int t[val][val], int x, int y) {
+    int cnt = 0; // compteur de voisins
+    int i,j;
+    for (i=x-1; i<=x+1; i++) {
+        for (j=y-1; j<=y+1; j++) {
+            if (i==x && j==y) {
+                continue;
+            }
+            if (i >= 0 && i < val && j >= 0 && j < val) {
+                if (t[i][j] == 1)
+                    cnt++;
+            }
+            else{
+                cnt = cnt;
             }
         }
     }
-
-    return voisins;
+    return cnt;
 }
 
 // ---------------------------------------------------------
-// Calcule la génération suivante
+// Calcule des générations suivantes
 // ---------------------------------------------------------
-void generation_suivante(int val, int t[val][val]) {
+
+void calcul_gen(int val, int t[val][val]) {
+    int x,y,i,j;
+    int res = 0;
     int temp[val][val];
-
-    for (int i = 0; i < val; i++) {
-        for (int j = 0; j < val; j++) {
-            int voisins = compte_voisins(val, t, i, j);
-
-            // Règles du jeu de la vie
-            if (t[i][j] == 1 && (voisins < 2 || voisins > 3))
-                temp[i][j] = 0; // meurt
-            else if (t[i][j] == 0 && voisins == 3)
-                temp[i][j] = 1; // naissance
-            else
-                temp[i][j] = t[i][j]; // reste identique
+    for (x=0; x < val; x++) {
+        for (y=0; y < val; y++) {
+            if (t[x][y] == 0) {
+                res = compte_voisins(val, t, x, y);
+                if (res==3) {
+                    temp[x][y] = 1;
+                }
+                else {
+                    temp[x][y] = 0;
+                }
+            }
+            else {
+                res = compte_voisins(val, t, x, y);
+                if (res==3 || res==2) {
+                    temp[x][y] = 1;
+                }
+                else {
+                    temp[x][y] = 0;
+                }
+            }
         }
     }
-
-    // Copie du tableau temp dans le tableau principal
-    for (int i = 0; i < val; i++) {
-        for (int j = 0; j < val; j++) {
+    affichage_matrice(val, temp);
+    for (i = 0; i < val; i++) {
+        for (j = 0; j < val; j++) {
             t[i][j] = temp[i][j];
         }
     }
@@ -102,7 +117,7 @@ int menu(int val, int t[val][val]) {
     printf("\n=== MENU ===\n");
     printf("1 - Afficher la matrice\n");
     printf("2 - Remplir la matrice manuellement\n");
-    printf("3 - Remplir la matrice aléatoirement\n");
+    printf("3 - Remplir la matrice aleatoirement\n");
     printf("4 - Lancer le jeu de la vie\n");
     printf("5 - Quitter\n");
     printf("Votre choix : ");
@@ -120,12 +135,11 @@ int menu(int val, int t[val][val]) {
             return 1;
         case 4: {
             int nb_gen;
-            printf("Combien de générations voulez-vous simuler ? ");
+            printf("Combien de generations voulez-vous simuler ? ");
             scanf("%d", &nb_gen);
             for (int g = 0; g < nb_gen; g++) {
-                printf("\nGénération %d :\n", g + 1);
-                affichage_matrice(val, t);
-                generation_suivante(val, t);
+                printf("\nGeneration %d :\n", g + 1);
+                calcul_gen(val,t);
             }
             return 1;
         }
