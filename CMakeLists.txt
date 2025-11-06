@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.31.6)
 project(Jeu_de_la_vie_de_Conway C)
 
 set(CMAKE_C_STANDARD 11)

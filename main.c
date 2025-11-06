@@ -137,6 +137,8 @@ int menu(int val, int t[val][val]) {
             int nb_gen;
             printf("Combien de generations voulez-vous simuler ? ");
             scanf("%d", &nb_gen);
+            printf("\nGeneration de base :\n");
+            affichage_matrice(val, t);
             for (int g = 0; g < nb_gen; g++) {
                 printf("\nGeneration %d :\n", g + 1);
                 calcul_gen(val,t);
