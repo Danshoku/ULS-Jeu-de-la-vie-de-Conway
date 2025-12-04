@@ -8,7 +8,9 @@ set(RAYLIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/raylib)
 include_directories(${RAYLIB_DIR}/include)
 link_directories(${RAYLIB_DIR}/lib)
 
-add_executable(Jeu_de_la_vie_de_Conway main.c)
+add_executable(Jeu_de_la_vie_de_Conway main.c
+        patterns.h
+)
 
 target_link_libraries(Jeu_de_la_vie_de_Conway
         raylib
