@@ -1,13 +1,12 @@
 #ifndef PATTERNS_H
 #define PATTERNS_H
 
-// Définition simple d'un motif
 typedef struct {
     int w, h;
-    int *cells; // 1 = vivant, 0 = mort
+    int *cells;
 } Pattern;
 
-// --- GLIDER ---
+// --- GLIDER (Vaisseau) ---
 int glider_data[] = {
     0, 1, 0,
     0, 0, 1,
@@ -15,7 +14,7 @@ int glider_data[] = {
 };
 Pattern PATTERN_GLIDER = {3, 3, glider_data};
 
-// --- CLOWN (Forme simple oscillante) ---
+// --- CLOWN (Oscillateur) ---
 int clown_data[] = {
     1, 1, 1,
     1, 0, 1,
@@ -23,42 +22,36 @@ int clown_data[] = {
 };
 Pattern PATTERN_CLOWN = {3, 3, clown_data};
 
-// --- GOSPER GLIDER GUN (Le fameux canon) ---
-// 36x9 approx
+// --- GOSPER GLIDER GUN (Le VRAI Canon) ---
+// Taille : 36 colonnes x 9 lignes
 int gosper_data[] = {
-    // Une représentation simplifiée 1D d'un bloc 36x9
-    // Pour simplifier le code ici, je mets les coordonnées relatives (x,y) des cellules vivantes
-    // et une fonction spéciale pour l'appliquer.
-    // NOTE : Pour ce fichier header, restons sur une matrice simple pour la lisibilité
-    // Ceci est un "Pulsar" (plus simple à coder en brut que le Gosper pour cet exemple)
-    0,0,1,1,1,0,0,0,1,1,1,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,
-    1,0,0,0,0,1,0,1,0,0,0,0,1,
-    1,0,0,0,0,1,0,1,0,0,0,0,1,
-    1,0,0,0,0,1,0,1,0,0,0,0,1,
-    0,0,1,1,1,0,0,0,1,1,1,0,0,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,1,1,1,0,0,0,1,1,1,0,0,
-    1,0,0,0,0,1,0,1,0,0,0,0,1,
-    1,0,0,0,0,1,0,1,0,0,0,0,1,
-    1,0,0,0,0,1,0,1,0,0,0,0,1,
-    0,0,0,0,0,0,0,0,0,0,0,0,0,
-    0,0,1,1,1,0,0,0,1,1,1,0,0
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,
+    0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,
+    1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    1,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
-Pattern PATTERN_PULSAR = {13, 13, gosper_data};
+Pattern PATTERN_GOSPER = {36, 9, gosper_data};
 
-// Fonction pour appliquer un pattern sur la grille principale
+// Fonction d'application
 void apply_pattern(int *grid, int *ageGrid, int cols, int rows, int x, int y, Pattern p) {
     for (int py = 0; py < p.h; py++) {
         for (int px = 0; px < p.w; px++) {
+            // On ajoute px et py à la position de la souris (x, y)
             int targetX = x + px;
             int targetY = y + py;
-            
-            // Vérifier les limites
+
+            // Vérification stricte des limites pour ne pas planter
             if (targetX >= 0 && targetX < cols && targetY >= 0 && targetY < rows) {
+                // On copie le motif
                 if (p.cells[py * p.w + px] == 1) {
-                    grid[targetY * cols + targetX] = 1;
-                    ageGrid[targetY * cols + targetX] = 1; // Age reset
+                    int idx = targetY * cols + targetX;
+                    grid[idx] = 1;
+                    ageGrid[idx] = 1; // On réinitialise l'âge pour qu'il soit blanc
                 }
             }
         }
