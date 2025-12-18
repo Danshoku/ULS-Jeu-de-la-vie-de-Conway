@@ -94,7 +94,7 @@ void appliquer_motif_miroir(int *grille, int *grilleAge, int colonnes, int ligne
 }
 
 // =========================================================
-// --- STRUCTURES & ETATS (CORRIGÉS EN FRANCAIS) ---
+// --- STRUCTURES & ETATS ---
 // =========================================================
 
 typedef enum {
@@ -152,10 +152,18 @@ JeuDeLaVie* initialiser_jeu(int colonnes, int lignes) {
     jeu->estEnPause = true;
     jeu->accumulateurTemps = 0.0f;
     jeu->vitesseMiseAJour = 0.1f;
+
+    // --- INITIALISATION DES NOMS DES JOUEURS ---
     strcpy(jeu->nomsJoueurs[1], "Joueur 1");
     strcpy(jeu->nomsJoueurs[2], "Joueur 2");
     strcpy(jeu->nomsJoueurs[3], "Joueur 3");
     strcpy(jeu->nomsJoueurs[4], "Joueur 4");
+    strcpy(jeu->nomsJoueurs[5], "Joueur 5");
+    strcpy(jeu->nomsJoueurs[6], "Joueur 6");
+    strcpy(jeu->nomsJoueurs[7], "Joueur 7");
+    strcpy(jeu->nomsJoueurs[8], "Joueur 8");
+    // -------------------------------------------
+
     jeu->saisieActuelle = 1;
     jeu->compteJoueursBR = 4;
     jeu->minuteurCombat = 0.0f;
@@ -390,7 +398,6 @@ void remplissage_aleatoire_classique(JeuDeLaVie *jeu) {
     }
 }
 
-// CORRECTION: EtatApplication utilisé ici
 Color obtenir_couleur_cellule(int val, int age, EtatApplication etat) {
     if (val == 0) return BLACK;
     if (etat == JEU || etat == SATISFAISANT_JEU) {
@@ -404,7 +411,6 @@ Color obtenir_couleur_cellule(int val, int age, EtatApplication etat) {
     return ObtenirCouleurJoueur(val);
 }
 
-// CORRECTION: EtatApplication utilisé ici
 void dessiner_bouton_accueil(EtatApplication *etat, JeuDeLaVie *jeu) {
     Rectangle btn = { 10.0f, 10.0f, 40.0f, 40.0f };
     DrawRectangleRec(btn, LIGHTGRAY);
@@ -438,11 +444,9 @@ int main(void) {
     camera.target = (Vector2){ (float)(LARGEUR_GRILLE*TAILLE_CELLULE)/2.0f, (float)(HAUTEUR_GRILLE*TAILLE_CELLULE)/2.0f };
 
     Texture2D fondDuel = LoadTexture("image_2.png");
-    Texture2D fondBR = LoadTexture("fortnite.jpg");
+    Texture2D fondBR = LoadTexture("fortnite.png");
 
-    // CORRECTION: Utilisation du bon type
     EtatApplication etat = MENU;
-    // CORRECTION: Variable renommée partout
     float defilementFond = 0.0f;
     int motifSelectionne = 0;
     int rotationMotif = 0;
@@ -566,7 +570,6 @@ int main(void) {
         ClearBackground(GetColor(0x181818FF));
 
         if (etat == DUEL_JEU || etat == BR_JEU || etat == MENU) {
-             // CORRECTION: Utilisation de defilementFond
              for(int i=0; i<largeurEcran/40+1; i++) DrawLine(i*40+(int)defilementFond%40, 0, i*40+(int)defilementFond%40, hauteurEcran, Fade(WHITE, 0.05f));
         }
 
@@ -587,7 +590,36 @@ int main(void) {
 
         if (etat == MENU) {
             int cx = largeurEcran/2; int cy = hauteurEcran/2;
-            DrawText("LE JEU DE LA VIE", cx - MeasureText("LE JEU DE LA VIE", 60)/2, cy - 250, 60, SKYBLUE);
+
+            // Fond stylé pour le menu
+            DrawRectangleGradientV(0, 0, largeurEcran, hauteurEcran, (Color){15, 20, 30, 255}, (Color){50, 60, 80, 255});
+            for(int i=0; i<largeurEcran/40+1; i++) {
+                DrawLine(i*40+(int)defilementFond%40, 0, i*40+(int)defilementFond%40, hauteurEcran, Fade(SKYBLUE, 0.1f));
+            }
+            float time = (float)GetTime();
+            for(int i=0; i<20; i++) {
+                float x = fmodf(i * 100 + time * 50, largeurEcran);
+                float y = fmodf(i * 200 + sinf(time + i)*50, hauteurEcran);
+                DrawRectangle((int)x, (int)y, 4, 4, Fade(SKYBLUE, 0.5f + 0.5f*sinf(time*2 + i)));
+            }
+
+            // --- TITRE ---
+            float pulse = sinf(time * 2.0f);
+            int titleSize = 60 + (int)(pulse * 5.0f);
+            DrawText("LE JEU DE LA VIE", cx - MeasureText("LE JEU DE LA VIE", titleSize)/2 + 4, cy - 250 + 4, titleSize, BLACK);
+            DrawText("LE JEU DE LA VIE", cx - MeasureText("LE JEU DE LA VIE", titleSize)/2, cy - 250, titleSize, SKYBLUE);
+
+            // --- CREDITS ANIMES (Bas de page) ---
+            float credTime = (float)GetTime();
+            float floatY = sinf(credTime * 2.0f) * 5.0f;
+            int credY = hauteurEcran - 50 + (int)floatY;
+            const char* txtCred = "Par Coelho Batiste et Nicole Corentin";
+            int txtW = MeasureText(txtCred, 20);
+
+            // Texte Crédits
+            DrawText(txtCred, cx - txtW/2 + 2, credY + 2, 20, BLACK);
+            DrawText(txtCred, cx - txtW/2, credY, 20, WHITE);
+            // ------------------------------------
 
             Rectangle rD = { (float)cx - 175.0f, (float)cy - 140.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), rD) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
@@ -725,20 +757,15 @@ int main(void) {
                 DrawTexturePro(fondDuel, (Rectangle){0, 0, (float)fondDuel.width, (float)fondDuel.height}, (Rectangle){0, 0, (float)largeurEcran, (float)hauteurEcran}, (Vector2){0, 0}, 0.0f, WHITE);
                 DrawRectangle(0, 0, largeurEcran, hauteurEcran, Fade(BLACK, 0.3f));
             } else {
-                DrawRectangle(0, 0, largeurEcran, hauteurEcran, (Color){20, 20, 40, 255});
-                float temps = (float)GetTime();
-                for(int i=0; i<50; i++) {
-                    float vitesse = 1000.0f + (float)(i*50);
-                    float decalage = (float)i * 1000.0f;
-                    float x = fmodf(temps * vitesse + decalage, (float)largeurEcran + 200.0f) - 100.0f;
-                    float y = (float)((i * 30) % hauteurEcran);
-                    DrawRectangle((int)x, (int)y, 40, 4, Fade(ORANGE, 0.7f));
-                }
+                DrawTexturePro(fondBR, (Rectangle){0, 0, (float)fondBR.width, (float)fondBR.height}, (Rectangle){0, 0, (float)largeurEcran, (float)hauteurEcran}, (Vector2){0, 0}, 0.0f, WHITE);
                 DrawRectangle(0, 0, largeurEcran, hauteurEcran, Fade(BLACK, 0.3f));
             }
             dessiner_bouton_accueil(&etat, jeu);
             const char* titre = (etat==DUEL_CONFIG) ? "DUEL DE CELLULES" : "BATTLE ROYALE";
-            DrawText(titre, cx - MeasureText(titre, 40)/2, cy - 250, 40, GOLD);
+            int tx = cx - MeasureText(titre, 50)/2;
+            int ty = cy - 250;
+            DrawText(titre, tx + 3, ty + 3, 50, BLACK);
+            DrawText(titre, tx, ty, 50, (etat==DUEL_CONFIG) ? RAYWHITE : ORANGE);
 
             if (etat == BR_CONFIG) {
                 DrawText("Nombre de Joueurs :", cx - 150, cy - 180, 20, WHITE);
@@ -779,7 +806,7 @@ int main(void) {
                 DrawText(jeu->nomsJoueurs[2], (int)rBox2.x + 5, (int)rBox2.y + 5, 20, BLACK);
                 if (jeu->saisieActuelle == 2) DrawText("_", (int)rBox2.x + 5 + MeasureText(jeu->nomsJoueurs[2], 20), (int)rBox2.y + 5, 20, RED);
             }
-            Rectangle btnVal = { (float)cx - 100.0f, (float)cy + 150.0f, 200.0f, 50.0f };
+            Rectangle btnVal = { (float)cx - 100.0f, (float)cy + 200.0f, 200.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), btnVal) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 if (etat == DUEL_CONFIG) { configurer_duel_aleatoire(jeu); etat = DUEL_JEU; }
                 else if (etat == BR_CONFIG) { configurer_battleroyale(jeu); etat = BR_JEU; }
@@ -801,39 +828,40 @@ int main(void) {
                 }
             }
             EndMode2D();
-            DrawRectangle(0, hauteurEcran - 100, largeurEcran, 100, Fade(BLACK, 0.9f));
+
+            DrawRectangle(0, 0, largeurEcran, 50, Fade(BLACK, 0.8f));
+            DrawText(TextFormat("Gen: %ld", jeu->generation), 70, 15, 20, WHITE);
+            DrawText(TextFormat("Zoom: %.2f", camera.zoom), 200, 15, 20, GREEN);
+            const char* txtEtat = jeu->estEnPause ? "PAUSE" : "EN COURS";
+            Color colEtat = jeu->estEnPause ? RED : GREEN;
+            DrawText(txtEtat, largeurEcran/2 - MeasureText(txtEtat, 20)/2, 15, 20, colEtat);
+
             dessiner_bouton_accueil(&etat, jeu);
 
             if (etat == DUEL_JEU) {
                 float tempsRestant = LIMITE_TEMPS_DUEL - jeu->minuteurCombat;
                 if (tempsRestant < 0) tempsRestant = 0;
-                DrawText(TextFormat("TEMPS: %.1f", tempsRestant), largeurEcran/2 - 50, 10, 30, WHITE);
+                DrawText(TextFormat("TEMPS: %.1f", tempsRestant), largeurEcran/2 - 50, 60, 30, WHITE);
             } else if (etat == BR_JEU) {
                 int survivants = 0; int maxP = jeu->compteJoueursBR;
                 for(int i=1; i<=maxP; i++) if(jeu->scores[i] > 0) survivants++;
-                DrawText(TextFormat("SURVIVANTS: %d", survivants), largeurEcran/2 - 80, 10, 30, WHITE);
+                DrawText(TextFormat("SURVIVANTS: %d", survivants), largeurEcran/2 - 80, 60, 30, WHITE);
             } else if (etat == SATISFAISANT_JEU) {
-                DrawText(NOMS_SATISFAISANTS[jeu->typeSatisfaisant], largeurEcran/2 - MeasureText(NOMS_SATISFAISANTS[jeu->typeSatisfaisant], 30)/2, 10, 30, PURPLE);
-                DrawText("Appuyez sur ESPACE pour lancer la dissolution", largeurEcran/2 - 180, 45, 15, WHITE);
+                DrawText(NOMS_SATISFAISANTS[jeu->typeSatisfaisant], largeurEcran/2 - MeasureText(NOMS_SATISFAISANTS[jeu->typeSatisfaisant], 30)/2, 60, 30, PURPLE);
             }
 
-            if (jeu->estEnPause) {
-                 Rectangle btnLancer = { (float)largeurEcran/2.0f - 150.0f, (float)hauteurEcran/2.0f - 30.0f, 300.0f, 60.0f };
-                 DrawRectangleRec(btnLancer, LIME);
-                 DrawText(jeu->generation==0 ? "COMMENCER" : "REPRENDRE", (int)btnLancer.x + 60, (int)btnLancer.y + 20, 20, BLACK);
-            }
             int totalScore = 0;
             int maxP = (etat == DUEL_JEU) ? 2 : jeu->compteJoueursBR;
             for(int i=1; i<=maxP; i++) totalScore += jeu->scores[i];
 
             if (totalScore > 0 && etat != SATISFAISANT_JEU) {
-                int barreX = 50; int barreY = hauteurEcran - 50; int barreLargeur = largeurEcran - 100; int barreHauteur = 30; int courantX = barreX;
+                int barreX = 50; int barreY = hauteurEcran - 150; int barreLargeur = largeurEcran - 100; int barreHauteur = 30; int courantX = barreX;
                 for(int i=1; i<=maxP; i++) {
                     float pct = (float)jeu->scores[i] / (float)totalScore;
                     int w = (int)(pct * barreLargeur);
                     if (w > 0) {
                         DrawRectangle(courantX, barreY, w, barreHauteur, ObtenirCouleurJoueur(i));
-                        if (w > 40) DrawText(TextFormat("%.0f", (float)jeu->scores[i]), courantX + 5, barreY + 5, 20, BLACK);
+                        if (w > 40) DrawText(TextFormat("%.1f%%", pct * 100.0f), courantX + 5, barreY + 5, 20, BLACK);
                         courantX += w;
                     }
                 }
@@ -866,26 +894,34 @@ int main(void) {
             }
             DrawRectangleLines(0, 0, jeu->colonnes*TAILLE_CELLULE, jeu->lignes*TAILLE_CELLULE, BLUE);
             EndMode2D();
-            DrawRectangle(0, 0, largeurEcran, 80, Fade(BLACK, 0.85f));
-            dessiner_bouton_accueil(&etat, jeu);
-            DrawText(TextFormat("Gen: %ld | Zoom: %.2f", jeu->generation, camera.zoom), 60, 10, 20, GREEN);
-            if(jeu->estEnPause) DrawText("PAUSE", 250, 10, 20, RED); else DrawText("JEU", 250, 10, 20, GREEN);
-            DrawText("Outil Actuel :", 10, 40, 20, WHITE);
+
+            DrawRectangle(0, 0, largeurEcran, 50, Fade(BLACK, 0.8f));
+            DrawText(TextFormat("Gen: %ld", jeu->generation), 70, 15, 20, WHITE);
+            DrawText(TextFormat("Zoom: %.2f", camera.zoom), 200, 15, 20, GREEN);
+            const char* txtEtat = jeu->estEnPause ? "PAUSE" : "EN COURS";
+            Color colEtat = jeu->estEnPause ? RED : GREEN;
+            DrawText(txtEtat, largeurEcran/2 - MeasureText(txtEtat, 20)/2, 15, 20, colEtat);
+
+            DrawRectangle(0, hauteurEcran - 100, 320, 100, Fade(BLACK, 0.7f));
+            DrawText("OUTIL ACTUEL :", 20, hauteurEcran - 80, 20, WHITE);
             Color couleurOutil = YELLOW;
             if (motifSelectionne == 1) couleurOutil = ORANGE;
             if (motifSelectionne == 2) couleurOutil = PINK;
             if (motifSelectionne == 3) couleurOutil = RED;
-            DrawText(nomOutil, 150, 40, 20, couleurOutil);
-            int touchesX = largeurEcran - 350;
-            DrawText("CONTROLES :", touchesX, 10, 10, GRAY);
-            DrawText("[I/O/P] -> Outils  [R] -> Rotation", touchesX, 25, 20, WHITE);
-            DrawText("[<] Reculer  [>] Avancer", touchesX, 50, 20, GREEN);
-
+            DrawText(nomOutil, 180, hauteurEcran - 80, 20, couleurOutil);
             const char* txtRot = "0";
             if (rotationMotif == 1) txtRot = "90";
             if (rotationMotif == 2) txtRot = "180";
             if (rotationMotif == 3) txtRot = "270";
-            DrawText(TextFormat("Angle: %s deg", txtRot), touchesX + 180, 40, 20, GOLD);
+            DrawText(TextFormat("Rotation: %s deg", txtRot), 20, hauteurEcran - 45, 20, GOLD);
+
+            int touchesX = largeurEcran - 360;
+            DrawRectangle(touchesX - 20, hauteurEcran - 80, 400, 80, Fade(BLACK, 0.7f));
+            DrawText("CONTROLES :", touchesX, hauteurEcran - 70, 10, GRAY);
+            DrawText("[I/O/P] -> Outils  [R] -> Rotation", touchesX, hauteurEcran - 55, 20, WHITE);
+            DrawText("[<] Reculer  [>] Avancer", touchesX, hauteurEcran - 30, 20, GREEN);
+
+            dessiner_bouton_accueil(&etat, jeu);
         }
         EndDrawing();
     }
