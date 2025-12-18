@@ -7,12 +7,16 @@
 #include <raymath.h>
 
 // =========================================================
-// --- CONSTANTES ---
+// --- CONSTANTES & CONFIG ---
 // =========================================================
 #define MAX_PLAYERS 8
 #define HISTORY_SIZE 200
 #define DUEL_TIME_LIMIT 30.0f
 #define ZONE_SHRINK_SPEED 2.5f
+
+// Noms des modèles pour le mode Satisfaisant
+const char* SATISFYING_NAMES[] = { "FLEUR GEANTE", "GALAXIE", "FRACTALE", "ONDES", "CRISTAL" };
+#define SATISFYING_COUNT 5
 
 // =========================================================
 // --- DEFINITIONS DES MOTIFS (PATTERNS) ---
@@ -40,7 +44,6 @@ int gosper_data[] = {
     0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 };
 Pattern PATTERN_GOSPER = {36, 9, gosper_data};
-
 
 void apply_pattern(int *grid, int *ageGrid, int cols, int rows, int x, int y, Pattern p, int playerVal) {
     for (int py = 0; py < p.h; py++) {
@@ -75,14 +78,14 @@ void apply_pattern_flipped(int *grid, int *ageGrid, int cols, int rows, int x, i
 }
 
 // =========================================================
-// --- STRUCTURES & CONFIG ---
+// --- STRUCTURES ---
 // =========================================================
 
 typedef enum {
-    MENU, GAME,
+    MENU, GAME, RULES,
     DUEL_SETUP, DUEL_RUN, DUEL_END,
     BR_SETUP, BR_RUN, BR_END,
-    SATISFYING_RUN // Mode Fleur Géante
+    SATISFYING_SETUP, SATISFYING_RUN
 } AppState;
 
 typedef struct {
@@ -106,15 +109,19 @@ typedef struct {
     float battleTimer;
     float zoneRadius;
 
+    int satisfyingType;
+
 } GameOfLife;
 
 Color GetPlayerColor(int id) {
     switch (id) {
-        case 1: return RED;    // Joueur 1
-        case 2: return GREEN;  // Joueur 2
-        case 3: return BLUE;
+        // --- COULEURS INVERSÉES ---
+        case 1: return BLUE; // Joueur 1 = Bleu
+        case 2: return RED;  // Joueur 2 = Rouge
+        // --------------------------
+        case 3: return GREEN;
         case 4: return ORANGE;
-        case 5: return PURPLE; // Couleur du mode Satisfaisant
+        case 5: return PURPLE;
         case 6: return YELLOW;
         case 7: return PINK;
         case 8: return LIME;
@@ -151,6 +158,7 @@ GameOfLife* init_game(int cols, int rows) {
     game->brPlayerCount = 4;
     game->battleTimer = 0.0f;
     game->zoneRadius = (float)cols;
+    game->satisfyingType = 0;
 
     return game;
 }
@@ -175,17 +183,25 @@ void undo_state(GameOfLife *game) {
     }
 }
 
-// Mise à jour classique (Mode Solo & Satisfaisant)
+void clear_grid(GameOfLife *game) {
+    int size = game->cols * game->rows;
+    memset(game->grid, 0, size * sizeof(int));
+    memset(game->ageGrid, 0, size * sizeof(int));
+    game->historyCount = 0; game->generation = 0;
+}
+
+// =========================================================
+// --- UPDATE LOGIC ---
+// =========================================================
+
 void update_game_classic(GameOfLife *game) {
     save_state(game);
     game->generation++;
     int offsets[8] = {-1-game->cols, -game->cols, 1-game->cols, -1, 1, -1+game->cols, game->cols, 1+game->cols};
 
-    // Détection auto : si on trouve du violet (5) au centre, on considère que c'est le mode fleur
-    // Cela permet de garder les couleurs cohérentes
     int centerVal = game->grid[game->cols/2 + (game->rows/2)*game->cols];
     int spawnColor = (centerVal == 5) ? 5 : 1;
-    if (game->generation < 5 && centerVal == 0) spawnColor = 5; // Force violet au début du mode fleur
+    if (game->generation < 5 && centerVal == 0) spawnColor = 5;
 
     for (int y = 0; y < game->rows; y++) {
         for (int x = 0; x < game->cols; x++) {
@@ -200,7 +216,6 @@ void update_game_classic(GameOfLife *game) {
                 if (count == 2 || count == 3) { game->nextGrid[idx] = myVal; game->ageGrid[idx]++; }
                 else { game->nextGrid[idx] = 0; game->ageGrid[idx] = 0; }
             } else {
-                // Si une cellule nait, elle prend la couleur dominante des voisins ou par défaut 1 (ou 5)
                 if (count == 3) {
                     game->nextGrid[idx] = (spawnColor == 5) ? 5 : 1;
                     game->ageGrid[idx] = 1;
@@ -212,9 +227,6 @@ void update_game_classic(GameOfLife *game) {
     int *temp = game->grid; game->grid = game->nextGrid; game->nextGrid = temp;
 }
 
-// =========================================================
-// --- UPDATE DUEL ---
-// =========================================================
 void update_duel_simple(GameOfLife *game) {
     save_state(game);
     game->generation++;
@@ -238,11 +250,9 @@ void update_duel_simple(GameOfLife *game) {
             int total = count1 + count2;
 
             if (game->grid[idx] > 0) {
-                // Survie
                 if (total == 2 || total == 3) game->nextGrid[idx] = game->grid[idx];
                 else game->nextGrid[idx] = 0;
             } else {
-                // Naissance : La couleur majoritaire l'emporte
                 if (total == 3) {
                     if (count1 > count2) game->nextGrid[idx] = 1;
                     else game->nextGrid[idx] = 2;
@@ -250,7 +260,6 @@ void update_duel_simple(GameOfLife *game) {
                     game->nextGrid[idx] = 0;
                 }
             }
-
             if (game->nextGrid[idx] == 1) game->scores[1]++;
             if (game->nextGrid[idx] == 2) game->scores[2]++;
         }
@@ -258,7 +267,6 @@ void update_duel_simple(GameOfLife *game) {
     int *temp = game->grid; game->grid = game->nextGrid; game->nextGrid = temp;
 }
 
-// Mise à jour Battle Royale
 int update_game_battle(GameOfLife *game, int maxPlayers, bool useZone) {
     save_state(game);
     game->generation++;
@@ -315,40 +323,29 @@ int update_game_battle(GameOfLife *game, int maxPlayers, bool useZone) {
     return survivors;
 }
 
-void clear_grid(GameOfLife *game) {
-    int size = game->cols * game->rows;
-    memset(game->grid, 0, size * sizeof(int));
-    memset(game->ageGrid, 0, size * sizeof(int));
-    game->historyCount = 0; game->generation = 0;
-}
 
 // =========================================================
-// --- SETUP NOUVEAU DUEL (ALÉATOIRE) ---
+// --- SETUP & GENERATION ---
 // =========================================================
+
 void setup_duel_random(GameOfLife *game) {
     clear_grid(game);
     int totalCells = game->cols * game->rows;
     for (int i = 0; i < totalCells; i++) {
         int r = rand() % 100;
-        // 20% de remplissage global, réparti équitablement
-        if (r < 10) game->grid[i] = 1;      // Joueur 1
-        else if (r < 20) game->grid[i] = 2; // Joueur 2
-        else game->grid[i] = 0;             // Vide
-
+        if (r < 10) game->grid[i] = 1;
+        else if (r < 20) game->grid[i] = 2;
+        else game->grid[i] = 0;
         if (game->grid[i] != 0) game->ageGrid[i] = 1;
     }
     game->battleTimer = 0.0f; game->generation = 0;
 }
 
-// =========================================================
-// --- SETUP MODE SATISFAISANT (FLEUR GÉANTE) ---
-// =========================================================
+// --- SETUP MODE SATISFAISANT (AMÉLIORÉ & CENTRÉ) ---
 void setup_satisfying(GameOfLife *game) {
     clear_grid(game);
     int cx = game->cols / 2;
     int cy = game->rows / 2;
-
-    // Rayon max basé sur la taille de la grille (un peu moins de la moitié de la hauteur)
     float maxRadius = (game->rows < game->cols ? game->rows : game->cols) * 0.45f;
 
     for (int y = 0; y < game->rows; y++) {
@@ -358,30 +355,73 @@ void setup_satisfying(GameOfLife *game) {
             float dist = sqrtf(dx*dx + dy*dy);
             float angle = atan2f(dy, dx);
 
-            // --- MATHÉMATIQUES DE LA FLEUR (ROSE POLAIRE) ---
-            // r = cos(k * theta). Ici k=6 pour faire 12 pétales, c'est joli.
-            float shape = fabs(cosf(6.0f * angle));
+            bool fill = false;
+            // 4 = Cristal (On traite différemment pour le remplissage)
+            bool isCrystal = (game->satisfyingType == 4);
 
-            // On calcule le rayon limite à cet angle précis
-            // 0.3f = base du cercle (coeur), 0.7f = longueur des pétales
-            float limit = maxRadius * (0.3f + 0.7f * shape);
+            // --- SELECTION DU MOTIF ---
+            switch (game->satisfyingType) {
+                case 0: // FLEUR GEANTE
+                {
+                    float shape = fabs(cosf(6.0f * angle));
+                    float limit = maxRadius * (0.3f + 0.7f * shape);
+                    if (dist <= limit) fill = true;
+                    break;
+                }
+                case 1: // GALAXIE
+                {
+                    float spiralOffset = dist * 0.15f;
+                    float arm = cosf(3.0f * angle + spiralOffset);
+                    if (dist <= maxRadius && arm > 0.2f) fill = true;
+                    break;
+                }
+                case 2: // FRACTALE (RECENTRAGE ICI)
+                {
+                    // Ajustement des offsets pour centrer le triangle
+                    int fx = x - (cx - (int)maxRadius);
+                    int fy = y - (cy - (int)maxRadius);
+                    if (fx > 0 && fy > 0 && fx < maxRadius*2 && fy < maxRadius*2) {
+                        if ((fx & fy) == 0) fill = true;
+                    }
+                    break;
+                }
+                case 3: // ONDES
+                {
+                    float wave = sinf(dist * 0.2f);
+                    if (dist <= maxRadius && wave > 0.0f) fill = true;
+                    break;
+                }
+                case 4: // CRISTAL (Manhattan/Chebyshev)
+                {
+                    float dManhattan = (fabs(dx) + fabs(dy));
+                    float dChebyshev = fmaxf(fabs(dx), fabs(dy));
+                    if ((dManhattan + dChebyshev) * 0.5f < maxRadius * 0.8f) fill = true;
+                    break;
+                }
+            }
 
-            if (dist <= limit) {
-                // --- L'ASTUCE "DISPARAÎT AU FUR ET À MESURE" ---
-                // Au lieu de remplir tout en solide (ce qui tue l'intérieur trop vite),
-                // on remplit en DAMIER (Checkerboard).
-                // Cela crée une structure "instable mais vivante" qui s'effrite joliment.
-                if ((x + y) % 2 == 0) {
-                    int idx = y * game->cols + x;
-                    game->grid[idx] = 5; // Couleur Violette
-                    game->ageGrid[idx] = 1;
+            // --- LOGIQUE DE REMPLISSAGE ---
+            if (fill) {
+                int idx = y * game->cols + x;
+
+                if (isCrystal) {
+                    // POUR LE CRISTAL : Remplissage aléatoire dense (Bruit)
+                    if (rand() % 100 < 65) {
+                        game->grid[idx] = 5;
+                        game->ageGrid[idx] = 1;
+                    }
+                } else {
+                    // POUR LES AUTRES : Damier harmonieux
+                    if ((x + y) % 2 == 0) {
+                        game->grid[idx] = 5;
+                        game->ageGrid[idx] = 1;
+                    }
                 }
             }
         }
     }
 
     game->generation = 0;
-    // On met en pause au début pour laisser l'utilisateur voir la forme parfaite
     game->isPaused = true;
 }
 
@@ -420,31 +460,31 @@ void random_fill_classic(GameOfLife *game) {
 
 Color get_cell_color(int val, int age, AppState state) {
     if (val == 0) return BLACK;
-    // En mode solo ou satisfaisant, on fait un dégradé
     if (state == GAME || state == SATISFYING_RUN) {
         if (val == 5) { // Mode Satisfaisant (Violet -> Rose -> Blanc)
             float factor = (float)age / 40.0f; if (factor > 1.0f) factor = 1.0f;
-            // Un beau dégradé Violet vers Rose néon
             return (Color){
-                140 + (unsigned char)(115*factor), // R augmente
-                40 + (unsigned char)(100*factor),  // G augmente un peu
-                255,                               // B reste fort
+                140 + (unsigned char)(115*factor),
+                40 + (unsigned char)(100*factor),
+                255,
                 255
             };
         }
-        // Mode Classic (Blanc -> Cyan)
         float factor = (float)age / 50.0f; if (factor > 1.0f) factor = 1.0f;
         return (Color){ 255 - (unsigned char)(25*factor), 255 - (unsigned char)(214*factor), 255 - (unsigned char)(200*factor), 255 };
     }
-    // Modes Compétitifs (Couleurs franches)
     return GetPlayerColor(val);
 }
 
 void draw_home_button(AppState *state, GameOfLife *game) {
-    Rectangle btnHome = { 10, 10, 40, 40 };
+    // CORRECTION WARNING : Ajout de .0f pour signifier un float explicite
+    Rectangle btnHome = { 10.0f, 10.0f, 40.0f, 40.0f };
     DrawRectangleRec(btnHome, LIGHTGRAY);
     DrawRectangleLinesEx(btnHome, 2, DARKGRAY);
-    DrawTriangle((Vector2){10, 30}, (Vector2){50, 30}, (Vector2){30, 10}, DARKGRAY);
+
+    // CORRECTION WARNING : Vector2 doit utiliser des floats
+    DrawTriangle((Vector2){10.0f, 30.0f}, (Vector2){50.0f, 30.0f}, (Vector2){30.0f, 10.0f}, DARKGRAY);
+
     DrawRectangle(18, 30, 24, 18, DARKGRAY);
     DrawRectangle(26, 38, 8, 10, LIGHTGRAY);
     if (CheckCollisionPointRec(GetMousePosition(), btnHome) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
@@ -469,8 +509,12 @@ int main(void) {
 
     Camera2D camera = { 0 };
     camera.zoom = 0.8f;
-    camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f };
-    camera.target = (Vector2){ (GRID_W*CELL_SIZE)/2.0f, (GRID_H*CELL_SIZE)/2.0f };
+    // CORRECTION WARNING : Cast explicite (float) pour l'initialisation de Vector2
+    camera.offset = (Vector2){ (float)screenWidth/2.0f, (float)screenHeight/2.0f };
+    camera.target = (Vector2){ (float)(GRID_W*CELL_SIZE)/2.0f, (float)(GRID_H*CELL_SIZE)/2.0f };
+
+    // Charger les images de fond
+    Texture2D duelBackground = LoadTexture("image_2.png");
 
     AppState state = MENU;
     float backgroundScroll = 0.0f;
@@ -478,14 +522,18 @@ int main(void) {
     const char* toolName = "Crayon";
 
     while (!WindowShouldClose()) {
-        if (IsWindowResized()) { screenWidth = GetScreenWidth(); screenHeight = GetScreenHeight(); camera.offset = (Vector2){ screenWidth/2.0f, screenHeight/2.0f }; }
+        if (IsWindowResized()) {
+            screenWidth = GetScreenWidth();
+            screenHeight = GetScreenHeight();
+            // CORRECTION WARNING : Cast explicite
+            camera.offset = (Vector2){ (float)screenWidth/2.0f, (float)screenHeight/2.0f };
+        }
         if (IsKeyPressed(KEY_F11)) ToggleFullscreen();
 
         if (state == MENU) {
             backgroundScroll += 0.5f;
         }
         else if (state == DUEL_SETUP || state == BR_SETUP) {
-            // Choix nombre joueurs (sauf Duel = 2 fixe)
             if (state == BR_SETUP) {
                  if (IsKeyPressed(KEY_LEFT)) { game->brPlayerCount--; if (game->brPlayerCount < 2) game->brPlayerCount = 2; }
                  if (IsKeyPressed(KEY_RIGHT)) { game->brPlayerCount++; if (game->brPlayerCount > MAX_PLAYERS) game->brPlayerCount = MAX_PLAYERS; }
@@ -523,7 +571,8 @@ int main(void) {
              if (IsKeyPressed(KEY_SPACE)) game->isPaused = !game->isPaused;
 
              if (game->isPaused) {
-                 Rectangle btnLancer = { screenWidth/2 - 150, screenHeight/2 - 30, 300, 60 };
+                 // CORRECTION WARNING : Cast et .0f
+                 Rectangle btnLancer = { (float)screenWidth/2.0f - 150.0f, (float)screenHeight/2.0f - 30.0f, 300.0f, 60.0f };
                  if (CheckCollisionPointRec(GetMousePosition(), btnLancer) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) game->isPaused = false;
              }
 
@@ -537,7 +586,10 @@ int main(void) {
                  }
                  if (state == DUEL_RUN && game->battleTimer >= DUEL_TIME_LIMIT) state = DUEL_END;
 
+                 // --- VITESSE ---
                  float updateTarget = 0.05f;
+                 if (state == SATISFYING_RUN) updateTarget = 0.08f;
+
                  game->timeAccumulator += dt;
                  if (game->timeAccumulator >= updateTarget) {
                     if (state == DUEL_RUN) {
@@ -556,7 +608,6 @@ int main(void) {
              if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_ESCAPE)) state = MENU;
         }
         else if (state == GAME) {
-            // ... (Code Solo inchangé) ...
             float wheel = GetMouseWheelMove();
             if (wheel != 0) {
                 Vector2 mousePos = GetScreenToWorld2D(GetMousePosition(), camera);
@@ -598,91 +649,279 @@ int main(void) {
         BeginDrawing();
         ClearBackground(GetColor(0x181818FF));
 
+        // Fond style menu pour le jeu
+        if (state == DUEL_RUN || state == BR_RUN || state == MENU) {
+             for(int i=0; i<screenWidth/40+1; i++) DrawLine(i*40+(int)backgroundScroll%40, 0, i*40+(int)backgroundScroll%40, screenHeight, Fade(WHITE, 0.05f));
+        }
+
+        // --- NOUVEAU : FOND ARTISTIQUE ANIMÉ POUR LE MODE DESSIN ---
+        if (state == SATISFYING_SETUP || state == SATISFYING_RUN) {
+            DrawRectangleGradientV(0, 0, screenWidth, screenHeight, (Color){10, 10, 30, 255}, (Color){40, 10, 60, 255});
+            float time = (float)GetTime();
+            for(int i = 0; i < 15; i++) {
+                float offset = (float)i * 123.0f;
+                float speed = 0.3f + (float)(i % 3) * 0.1f;
+                float x = (float)screenWidth/2.0f + sinf(time * speed + offset) * (float)(screenWidth * 0.4f);
+                float y = (float)screenHeight/2.0f + cosf(time * speed * 0.8f + offset) * (float)(screenHeight * 0.4f);
+                float radius = 100.0f + sinf(time + offset) * 50.0f;
+                float hue = fmodf(time * 10.0f + (float)i * 20.0f, 360.0f);
+                Color orbColor = ColorFromHSV(hue, 0.6f, 0.8f);
+                orbColor.a = 30;
+                DrawCircleGradient((int)x, (int)y, radius, orbColor, Fade(orbColor, 0.0f));
+            }
+        }
+        // -----------------------------------------------------------
+
         if (state == MENU) {
-            for(int i=0; i<screenWidth/40+1; i++) DrawLine(i*40+(int)backgroundScroll%40, 0, i*40+(int)backgroundScroll%40, screenHeight, Fade(WHITE, 0.05f));
             int cx = screenWidth/2; int cy = screenHeight/2;
             DrawText("LE JEU DE LA VIE", cx - MeasureText("LE JEU DE LA VIE", 60)/2, cy - 250, 60, SKYBLUE);
 
-            Rectangle rD = { cx-175, cy-120, 350, 50 };
+            // 1. DUEL (Pos: -140)
+            Rectangle rD = { (float)cx - 175.0f, (float)cy - 140.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), rD) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 game->currentInput = 1; state = DUEL_SETUP;
             }
             DrawRectangleRec(rD, CheckCollisionPointRec(GetMousePosition(), rD)?RED:DARKGRAY);
-            DrawText("DUEL ALEATOIRE (30s)", rD.x+40, rD.y+15, 20, WHITE);
+            const char* txtDuel = "MODE DUEL";
+            DrawText(txtDuel, (int)(rD.x + (rD.width - MeasureText(txtDuel, 20))/2), (int)rD.y+15, 20, WHITE);
 
-            Rectangle rB = { cx-175, cy-60, 350, 50 };
+            // 2. BATTLE ROYALE (Pos: -80)
+            Rectangle rB = { (float)cx - 175.0f, (float)cy - 80.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), rB) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 game->currentInput = 1; state = BR_SETUP; game->brPlayerCount = 4;
             }
             DrawRectangleRec(rB, CheckCollisionPointRec(GetMousePosition(), rB)?ORANGE:DARKGRAY);
-            DrawText("BATTLE ROYALE", rB.x+100, rB.y+15, 20, BLACK);
+            DrawText("BATTLE ROYALE", (int)rB.x+100, (int)rB.y+15, 20, WHITE);
 
-            // --- BOUTON SATISFAISANT (FLEUR GEANTE) ---
-            Rectangle rOP = { cx-175, cy, 350, 50 };
+            // 3. MODE DESSIN (Pos: -20)
+            Rectangle rOP = { (float)cx - 175.0f, (float)cy - 20.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), rOP) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                setup_satisfying(game); state = SATISFYING_RUN;
+                state = SATISFYING_SETUP;
             }
             DrawRectangleRec(rOP, CheckCollisionPointRec(GetMousePosition(), rOP)?PURPLE:DARKGRAY);
-            DrawText("MODE SATISFAISANT", rOP.x+80, rOP.y+15, 20, WHITE);
+            DrawText("MODE DESSIN", (int)rOP.x + 110, (int)rOP.y+15, 20, WHITE);
 
-            Rectangle r1 = { cx-175, cy+60, 350, 50 };
+            // 4. REGLES DU JEU (NOUVEAU - Pos: +40)
+            Rectangle rRules = { (float)cx - 175.0f, (float)cy + 40.0f, 350.0f, 50.0f };
+            if (CheckCollisionPointRec(GetMousePosition(), rRules) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                state = RULES;
+            }
+            DrawRectangleRec(rRules, CheckCollisionPointRec(GetMousePosition(), rRules)?SKYBLUE:DARKGRAY);
+            DrawText("REGLES DU JEU", (int)rRules.x + 105, (int)rRules.y+15, 20, CheckCollisionPointRec(GetMousePosition(), rRules)?BLACK:WHITE);
+
+            // 5. SOLO EDITEUR (Pos: +100)
+            Rectangle r1 = { (float)cx - 175.0f, (float)cy + 100.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), r1) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) { clear_grid(game); state = GAME; }
             DrawRectangleRec(r1, CheckCollisionPointRec(GetMousePosition(), r1)?RAYWHITE:DARKGRAY);
-            DrawText("Mode Solo (Editeur)", r1.x+80, r1.y+15, 20, BLACK);
+            DrawText("MODE SOLO (EDITEUR)", (int)r1.x+60, (int)r1.y+15, 20, CheckCollisionPointRec(GetMousePosition(), r1)?BLACK:WHITE);
 
-            Rectangle r2 = { cx-175, cy+120, 350, 50 };
+            // 6. SOLO ALEATOIRE (Pos: +160)
+            Rectangle r2 = { (float)cx - 175.0f, (float)cy + 160.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), r2) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) { random_fill_classic(game); state = GAME; }
             DrawRectangleRec(r2, CheckCollisionPointRec(GetMousePosition(), r2)?RAYWHITE:DARKGRAY);
-            DrawText("Mode Solo (Aleatoire)", r2.x+70, r2.y+15, 20, BLACK);
+            DrawText("MODE SOLO (ALEATOIRE)", (int)r2.x+50, (int)r2.y+15, 20, CheckCollisionPointRec(GetMousePosition(), r2)?BLACK:WHITE);
 
-            Rectangle rQ = { cx-175, cy+180, 350, 50 };
+            // 7. QUITTER (Pos: +220)
+            Rectangle rQ = { (float)cx - 175.0f, (float)cy + 220.0f, 350.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), rQ) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) CloseWindow();
-            DrawRectangleRec(rQ, CheckCollisionPointRec(GetMousePosition(), rQ)?RED:DARKGRAY); DrawText("Quitter", rQ.x+130, rQ.y+15, 20, WHITE);
+            DrawRectangleRec(rQ, CheckCollisionPointRec(GetMousePosition(), rQ)?RED:DARKGRAY);
+            DrawText("QUITTER", (int)rQ.x+130, (int)rQ.y+15, 20, WHITE);
         }
-        else if (state == DUEL_SETUP || state == BR_SETUP) {
+        else if (state == RULES) {
+            // --- ECRAN DES REGLES DU JEU ---
+            draw_home_button(&state, game);
+            int cx = screenWidth/2;
+            int cy = screenHeight/2;
+
+            DrawText("LES 4 REGLES DE CONWAY", cx - MeasureText("LES 4 REGLES DE CONWAY", 40)/2, 50, 40, GOLD);
+
+            float time = (float)GetTime();
+            int boxH = 120;
+
+            // Recalculer startY pour centrer verticalement les 4 boîtes
+            int totalHeight = 4 * (boxH + 20);
+            int startY = (screenHeight - totalHeight) / 2 + 40;
+
+            // Regle 1 : Sous-population
+            DrawRectangle(cx - 300, startY, 600, boxH, Fade(DARKGRAY, 0.5f));
+            DrawText("1. SOUS-POPULATION", cx - 280, startY + 20, 20, ORANGE);
+            DrawText("Une cellule vivante avec moins de 2 voisines meurt.", cx - 280, startY + 50, 18, WHITE);
+            // Anim: Cellule qui disparait
+            float fade1 = (sinf(time * 3.0f) + 1.0f) * 0.5f;
+            DrawRectangle(cx + 200, startY + 40, 20, 20, Fade(WHITE, fade1)); // Cellule centrale
+            DrawRectangle(cx + 200 + 22, startY + 40, 20, 20, WHITE); // Voisine unique
+            DrawText(fade1 > 0.5f ? "VIVANT" : "MORT", cx + 200, startY + 70, 10, fade1 > 0.5f ? GREEN : RED);
+
+            // Regle 2 : Survie
+            int y2 = startY + boxH + 20;
+            DrawRectangle(cx - 300, y2, 600, boxH, Fade(DARKGRAY, 0.5f));
+            DrawText("2. SURVIE", cx - 280, y2 + 20, 20, GREEN);
+            DrawText("Une cellule avec 2 ou 3 voisines reste vivante.", cx - 280, y2 + 50, 18, WHITE);
+            // Anim: Stable
+            DrawRectangle(cx + 200, y2 + 40, 20, 20, WHITE);
+            DrawRectangle(cx + 200 + 22, y2 + 40, 20, 20, WHITE);
+            DrawRectangle(cx + 200 - 22, y2 + 40, 20, 20, WHITE);
+            DrawText("STABLE", cx + 200, y2 + 70, 10, GREEN);
+
+            // Regle 3 : Surpopulation
+            int y3 = y2 + boxH + 20;
+            DrawRectangle(cx - 300, y3, 600, boxH, Fade(DARKGRAY, 0.5f));
+            DrawText("3. SURPOPULATION", cx - 280, y3 + 20, 20, RED);
+            DrawText("Une cellule avec plus de 3 voisines meurt.", cx - 280, y3 + 50, 18, WHITE);
+            // Anim: Devient rouge puis noir
+            float fade3 = (sinf(time * 3.0f) + 1.0f) * 0.5f;
+            DrawRectangle(cx + 200, y3 + 40, 20, 20, fade3 > 0.5f ? RED : BLACK); // Meurt
+            DrawRectangle(cx + 200 + 22, y3 + 40, 20, 20, WHITE);
+            DrawRectangle(cx + 200 - 22, y3 + 40, 20, 20, WHITE);
+            DrawRectangle(cx + 200, y3 + 40 - 22, 20, 20, WHITE);
+            DrawRectangle(cx + 200, y3 + 40 + 22, 20, 20, WHITE);
+
+            // Regle 4 : Reproduction
+            int y4 = y3 + boxH + 20;
+            DrawRectangle(cx - 300, y4, 600, boxH, Fade(DARKGRAY, 0.5f));
+            DrawText("4. NAISSANCE", cx - 280, y4 + 20, 20, SKYBLUE);
+            DrawText("Une cellule morte avec exactement 3 voisines nait.", cx - 280, y4 + 50, 18, WHITE);
+            // Anim: Apparition
+            float fade4 = (sinf(time * 3.0f - 1.5f) + 1.0f) * 0.5f;
+            DrawRectangleLines(cx + 200, y4 + 40, 20, 20, GRAY); // Case vide
+            if (fade4 > 0.3f) DrawRectangle(cx + 200, y4 + 40, 20, 20, Fade(SKYBLUE, fade4));
+            DrawRectangle(cx + 200 + 22, y4 + 40, 20, 20, WHITE);
+            DrawRectangle(cx + 200 - 22, y4 + 40, 20, 20, WHITE);
+            DrawRectangle(cx + 200, y4 + 40 - 22, 20, 20, WHITE);
+
+        }
+        else if (state == SATISFYING_SETUP) {
             draw_home_button(&state, game);
             int cx = screenWidth/2; int cy = screenHeight/2;
+
+            DrawText("CHOISISSEZ VOTRE MOTIF", cx - MeasureText("CHOISISSEZ VOTRE MOTIF", 30)/2, cy - 150, 30, WHITE);
+
+            // CORRECTION WARNING : Rectangle avec float
+            Rectangle rLeft = { (float)cx - 200.0f, (float)cy - 30.0f, 50.0f, 60.0f };
+            Rectangle rRight = { (float)cx + 150.0f, (float)cy - 30.0f, 50.0f, 60.0f };
+
+            if (CheckCollisionPointRec(GetMousePosition(), rLeft) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                game->satisfyingType--; if (game->satisfyingType < 0) game->satisfyingType = SATISFYING_COUNT - 1;
+            }
+            if (CheckCollisionPointRec(GetMousePosition(), rRight) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                game->satisfyingType++; if (game->satisfyingType >= SATISFYING_COUNT) game->satisfyingType = 0;
+            }
+
+            DrawRectangleRec(rLeft, CheckCollisionPointRec(GetMousePosition(), rLeft)?LIGHTGRAY:GRAY);
+            DrawText("<", (int)rLeft.x + 15, (int)rLeft.y + 15, 30, WHITE);
+
+            DrawRectangleRec(rRight, CheckCollisionPointRec(GetMousePosition(), rRight)?LIGHTGRAY:GRAY);
+            DrawText(">", (int)rRight.x + 15, (int)rRight.y + 15, 30, WHITE);
+
+            const char* currentModelName = SATISFYING_NAMES[game->satisfyingType];
+            DrawText(currentModelName, cx - MeasureText(currentModelName, 40)/2, cy - 20, 40, PURPLE);
+
+            Rectangle btnLancer = { (float)cx - 100.0f, (float)cy + 80.0f, 200.0f, 50.0f };
+            if (CheckCollisionPointRec(GetMousePosition(), btnLancer) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+                setup_satisfying(game);
+                state = SATISFYING_RUN;
+            }
+            DrawRectangleRec(btnLancer, GREEN);
+            DrawText("LANCER", (int)btnLancer.x + 60, (int)btnLancer.y + 15, 20, BLACK);
+        }
+        else if (state == DUEL_SETUP || state == BR_SETUP) {
+
+            int cx = screenWidth/2; int cy = screenHeight/2;
             int maxP = (state == DUEL_SETUP) ? 2 : game->brPlayerCount;
+
+            // --- FOND D'ECRAN DUEL & BR ---
+            if (state == DUEL_SETUP) {
+                DrawTexturePro(duelBackground, (Rectangle){0, 0, (float)duelBackground.width, (float)duelBackground.height}, (Rectangle){0, 0, (float)screenWidth, (float)screenHeight}, (Vector2){0, 0}, 0.0f, WHITE);
+                DrawRectangle(0, 0, screenWidth, screenHeight, Fade(BLACK, 0.3f)); // Filtre léger
+            } else {
+                // ANIMATION PROCEDURALE BATTLE ROYALE "ZONE DE GUERRE"
+                DrawRectangle(0, 0, screenWidth, screenHeight, (Color){20, 20, 40, 255}); // Fond sombre
+                float time = (float)GetTime();
+                for(int i=0; i<50; i++) {
+                    float speed = 1000.0f + (float)(i*50);
+                    float offset = (float)i * 1000.0f;
+                    float x = fmodf(time * speed + offset, (float)screenWidth + 200.0f) - 100.0f;
+                    float y = (float)((i * 30) % screenHeight);
+                    DrawRectangle((int)x, (int)y, 40, 4, Fade(ORANGE, 0.7f)); // Traceurs
+                }
+                DrawRectangle(0, 0, screenWidth, screenHeight, Fade(BLACK, 0.3f)); // Filtre
+            }
+
+            // Bouton Home APRES le fond pour être visible
+            draw_home_button(&state, game);
 
             const char* title = "CONFIGURATION";
             if(state==DUEL_SETUP) title="DUEL DE CELLULES";
             if(state==BR_SETUP) title="BATTLE ROYALE";
 
-            DrawText(title, cx - MeasureText(title, 30)/2, cy - 250, 30, GOLD);
+            DrawText(title, cx - MeasureText(title, 40)/2, cy - 250, 40, GOLD);
 
             if (state == BR_SETUP) {
-                DrawText("Nombre de Joueurs :", cx - 150, cy - 200, 20, WHITE);
-                DrawText("<", cx + 50, cy - 200, 20, (game->brPlayerCount > 2) ? YELLOW : DARKGRAY);
-                DrawText(TextFormat("%d", game->brPlayerCount), cx + 70, cy - 200, 20, YELLOW);
-                DrawText(">", cx + 90, cy - 200, 20, (game->brPlayerCount < MAX_PLAYERS) ? YELLOW : DARKGRAY);
-                DrawText("(Max 8)", cx + 120, cy - 200, 15, GRAY);
+                // Design BR simple centré
+                DrawText("Nombre de Joueurs :", cx - 150, cy - 180, 20, WHITE);
+                DrawText("<", cx + 50, cy - 180, 20, (game->brPlayerCount > 2) ? YELLOW : DARKGRAY);
+                DrawText(TextFormat("%d", game->brPlayerCount), cx + 70, cy - 180, 20, YELLOW);
+                DrawText(">", cx + 90, cy - 180, 20, (game->brPlayerCount < MAX_PLAYERS) ? YELLOW : DARKGRAY);
+
+                int startY = cy - 120;
+                DrawRectangle(cx - 250, startY - 10, 500, (maxP * 40) + 20, Fade(BLACK, 0.6f)); // Panneau de fond
+
+                for(int i=1; i<=maxP; i++) {
+                    int yPos = startY + ((i-1)*40);
+                    Color pColor = GetPlayerColor(i);
+                    DrawText(TextFormat("J%d:", i), cx - 220, yPos + 5, 20, pColor);
+                    Rectangle rBox = { (float)cx - 150.0f, (float)yPos, 350.0f, 30.0f };
+                    DrawRectangleRec(rBox, Fade(LIGHTGRAY, 0.8f));
+                    if (game->currentInput == i) DrawRectangleLinesEx(rBox, 2, pColor);
+                    DrawText(game->playerNames[i], (int)rBox.x + 5, (int)rBox.y + 5, 20, BLACK);
+                    if (game->currentInput == i) DrawText("_", (int)rBox.x + 5 + MeasureText(game->playerNames[i], 20), (int)rBox.y + 5, 20, pColor);
+                }
+            }
+            else {
+                // DESIGN DUEL AMELIORE (Gauche vs Droite)
+                int panelY = cy - 50;
+
+                // Joueur 1 (Gauche - Bleu)
+                DrawRectangle(cx - 400, panelY, 300, 100, Fade(BLUE, 0.2f));
+                DrawRectangleLines(cx - 400, panelY, 300, 100, BLUE);
+                DrawText("JOUEUR 1", cx - 400 + 10, panelY - 30, 20, BLUE);
+
+                Rectangle rBox1 = { (float)cx - 380.0f, (float)panelY + 35.0f, 260.0f, 30.0f };
+                DrawRectangleRec(rBox1, Fade(LIGHTGRAY, 0.9f));
+                if (game->currentInput == 1) DrawRectangleLinesEx(rBox1, 2, BLUE);
+                DrawText(game->playerNames[1], (int)rBox1.x + 5, (int)rBox1.y + 5, 20, BLACK);
+                if (game->currentInput == 1) DrawText("_", (int)rBox1.x + 5 + MeasureText(game->playerNames[1], 20), (int)rBox1.y + 5, 20, BLUE);
+
+                // VS au milieu
+                DrawText("VS", cx - MeasureText("VS", 60)/2, panelY + 20, 60, WHITE);
+
+                // Joueur 2 (Droite - Rouge)
+                DrawRectangle(cx + 100, panelY, 300, 100, Fade(RED, 0.2f));
+                DrawRectangleLines(cx + 100, panelY, 300, 100, RED);
+                DrawText("JOUEUR 2", cx + 100 + 10, panelY - 30, 20, RED);
+
+                Rectangle rBox2 = { (float)cx + 120.0f, (float)panelY + 35.0f, 260.0f, 30.0f };
+                DrawRectangleRec(rBox2, Fade(LIGHTGRAY, 0.9f));
+                if (game->currentInput == 2) DrawRectangleLinesEx(rBox2, 2, RED);
+                DrawText(game->playerNames[2], (int)rBox2.x + 5, (int)rBox2.y + 5, 20, BLACK);
+                if (game->currentInput == 2) DrawText("_", (int)rBox2.x + 5 + MeasureText(game->playerNames[2], 20), (int)rBox2.y + 5, 20, RED);
             }
 
-            int startY = cy - 150;
-            for(int i=1; i<=maxP; i++) {
-                int yPos = startY + ((i-1)*50);
-                Color pColor = GetPlayerColor(i);
-                DrawText(TextFormat("J%d:", i), cx - 300, yPos, 20, pColor);
-                Rectangle rBox = { cx - 220, yPos - 5, 300, 30 };
-                DrawRectangleRec(rBox, LIGHTGRAY);
-                if (game->currentInput == i) DrawRectangleLinesEx(rBox, 2, pColor);
-                DrawText(game->playerNames[i], rBox.x + 5, rBox.y + 5, 20, BLACK);
-                if (game->currentInput == i) DrawText("_", rBox.x + 5 + MeasureText(game->playerNames[i], 20), rBox.y + 5, 20, pColor);
-            }
-            Rectangle btnVal = { cx - 100, cy + 220, 200, 50 };
+            Rectangle btnVal = { (float)cx - 100.0f, (float)cy + 150.0f, 200.0f, 50.0f };
             if (CheckCollisionPointRec(GetMousePosition(), btnVal) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
                 if (state == DUEL_SETUP) { setup_duel_random(game); state = DUEL_RUN; }
                 else if (state == BR_SETUP) { setup_battleroyale(game); state = BR_RUN; }
                 game->isPaused = true;
             }
-            DrawRectangleRec(btnVal, GREEN); DrawText("LANCER", btnVal.x + 60, btnVal.y + 15, 20, BLACK);
+            DrawRectangleRec(btnVal, GREEN); DrawText("LANCER", (int)btnVal.x + 60, (int)btnVal.y + 15, 20, BLACK);
         }
         else if (state == DUEL_RUN || state == BR_RUN || state == SATISFYING_RUN) {
             BeginMode2D(camera);
             if (state == BR_RUN) {
                 float realRadius = game->zoneRadius * CELL_SIZE;
-                Vector2 realCenter = { (GRID_W*CELL_SIZE)/2.0f, (GRID_H*CELL_SIZE)/2.0f };
-                DrawCircleLines(realCenter.x, realCenter.y, realRadius, Fade(RED, 0.5f));
+                // CORRECTION WARNING : Vector2 avec float
+                Vector2 realCenter = { (float)(GRID_W*CELL_SIZE)/2.0f, (float)(GRID_H*CELL_SIZE)/2.0f };
+                DrawCircleLines((int)realCenter.x, (int)realCenter.y, realRadius, Fade(RED, 0.5f));
             }
             for (int y=0; y<game->rows; y++) {
                 for (int x=0; x<game->cols; x++) {
@@ -703,14 +942,15 @@ int main(void) {
                 for(int i=1; i<=maxP; i++) if(game->scores[i] > 0) survivors++;
                 DrawText(TextFormat("SURVIVANTS: %d", survivors), screenWidth/2 - 80, 10, 30, WHITE);
             } else if (state == SATISFYING_RUN) {
-                DrawText("FLEUR GEANTE", screenWidth/2 - 100, 10, 30, PURPLE);
+                DrawText(SATISFYING_NAMES[game->satisfyingType], screenWidth/2 - MeasureText(SATISFYING_NAMES[game->satisfyingType], 30)/2, 10, 30, PURPLE);
                 DrawText("Appuyez sur ESPACE pour lancer la dissolution", screenWidth/2 - 180, 45, 15, WHITE);
             }
 
             if (game->isPaused) {
-                 Rectangle btnLancer = { screenWidth/2 - 150, screenHeight/2 - 30, 300, 60 };
+                 // CORRECTION WARNING : Rectangle avec float
+                 Rectangle btnLancer = { (float)screenWidth/2.0f - 150.0f, (float)screenHeight/2.0f - 30.0f, 300.0f, 60.0f };
                  DrawRectangleRec(btnLancer, LIME);
-                 DrawText(game->generation==0 ? "COMMENCER" : "REPRENDRE", btnLancer.x + 60, btnLancer.y + 20, 20, BLACK);
+                 DrawText(game->generation==0 ? "COMMENCER" : "REPRENDRE", (int)btnLancer.x + 60, (int)btnLancer.y + 20, 20, BLACK);
             }
             int totalScore = 0;
             int maxP = (state == DUEL_RUN) ? 2 : game->brPlayerCount;
@@ -777,6 +1017,10 @@ int main(void) {
         }
         EndDrawing();
     }
+
+    // Décharger la texture à la fin du programme
+    UnloadTexture(duelBackground);
+
     free(game->grid); free(game->nextGrid); free(game->ageGrid);
     for(int i=0; i<HISTORY_SIZE; i++) { free(game->history[i]); free(game->historyAge[i]); }
     free(game); CloseWindow(); return 0;
